@@ -2,7 +2,6 @@
 
 var fs = require('fs');
 var path = require('path');
-// var util = require('util');
 
 var yeoman = require('yeoman-generator');
 
@@ -45,18 +44,18 @@ var choices = [{
 }];
 
 var Generator = yeoman.generators.Base.extend({
-	constructor: function() {
+	constructor: function () {
 		yeoman.generators.Base.apply(this, arguments);
 
-		this.option('namespace');
+		this.option('destination');
 		this.argument('server', {
 			desc: 'The server for which to generate a config',
 			required: false,
 			type: 'String'
 		});
 	},
-	prompting: function() {
-		var cb = this.async();
+	prompting: function () {
+		var done = this.async();
 
 		this.promptResults = {
 			ignores: [
@@ -78,17 +77,17 @@ var Generator = yeoman.generators.Base.extend({
 			]
 		};
 
-		if (this.server !== undefined) {
+		if ( this.server !== undefined ) {
 			// There is no "pretty" built-in ability to break in `forEach, so
 			// use `some`: http://ecma-international.org/ecma-262/5.1/#sec-15.4.4.17
-			choices.some(function(elem) {
-				if (this.server === elem.value.server) {
+			choices.some(function (elem) {
+				if ( this.server === elem.value.server ) {
 					this.promptResults.choice = elem.value;
 					return true;
 				}
 			}.bind(this));
-			if (this.promptResults.choice) {
-				return cb();
+			if ( this.promptResults.choice ) {
+				return done();
 			}
 		}
 
@@ -102,58 +101,56 @@ var Generator = yeoman.generators.Base.extend({
 			name: 'includeDocs',
 			message: 'Would you like docs included?',
 			default: false
-		}], function(props) {
+		}], function (props) {
 			// remove `doc` from `ignores`
-			if (props.includeDocs === true) {
+			if ( props.includeDocs === true ) {
 				this.promptResults.ignores.splice(this.promptResults.ignores.indexOf('doc'), 1);
 			}
 			this.promptResults.choice = props.choice;
 
-			cb();
+			done();
 		}.bind(this));
 	},
-	writing: function() {
+	writing: function () {
+		var done = this.async();
 		//  extract props from prompting phase
 		var ignores = this.promptResults.ignores;
 		var configs = this.promptResults.choice;
 
 		var configsPath = path.join(this.sourceRoot(), configs.server);
-		var destPath;
-		if (typeof this.options.namespace === 'string') {
-			destPath = this.options.namespace;
-		} else if (this.options.namespace === true) {
-			destPath = configs.server;
+
+		var destPath = this.destinationRoot();
+		if ( typeof this.options.destination === 'string' ) {
+			destPath = path.join(destPath, this.options.destination);
+		} else if ( this.options.destination === true ) {
+			destPath = path.join(destPath, configs.server);
 		}
 
 		// Only the `node` server configs require the `package.json` file
-		if (configs.server !== 'node') {
+		if ( configs.server !== 'node' ) {
 			ignores.push('package.json');
 		}
 
-		this.tarball(configs.url, configsPath, function() {
-			if (configs.server === 'apache') {
+		this.tarball(configs.url, configsPath, { strip: 1 }, function () {
+			if ( configs.server === 'apache' ) {
 				this.copy(path.join(configsPath, 'dist', '.htaccess'), (destPath) ?
 					path.join(destPath, '.htaccess') : '.htaccess');
 			} else {
 				this.expand('*', {
 					cwd: configsPath,
 					dot: true
-				}).forEach(function(elem) {
-					console.log(elem);
+				}).forEach(function (elem) {
 					var tmplPath = path.join(configs.server, elem);
-
-					if (ignores.indexOf(elem) === -1) {
-						if (fs.lstatSync(path.join(configsPath, elem)).isDirectory() === true) {
-							console.log('dir ' + elem);
-							this.directory(tmplPath, (destPath) ? path.join(destPath, elem) : elem);
+					if ( ignores.indexOf(elem) === -1 ) {
+						if ( fs.lstatSync(path.join(configsPath, elem)).isDirectory() === true ) {
+							this.directory(tmplPath, path.join(destPath, elem));
 						} else {
-							console.log('file ' + elem);
-							this.copy(tmplPath, (destPath) ? path.join(destPath, elem) : elem);
+							this.copy(tmplPath, path.join(destPath, elem));
 						}
 					}
 				}, this);
 			}
-
+			done();
 		}.bind(this));
 	}
 });
